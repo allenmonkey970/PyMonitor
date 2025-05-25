@@ -6,7 +6,7 @@ import getpass
 import datetime
 import wmi
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, scrolledtext
 
 try:
     import pynvml
