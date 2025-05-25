@@ -14,9 +14,11 @@ try:
         nvmlInit, nvmlShutdown, nvmlDeviceGetCount, nvmlDeviceGetHandleByIndex,
         nvmlDeviceGetName, nvmlDeviceGetFanSpeed, NVMLError_NotSupported
     )
+
     has_pynvml = True
 except ImportError:
     has_pynvml = False
+
 
 def is_admin():
     try:
@@ -24,14 +26,30 @@ def is_admin():
     except Exception:
         return False
 
+
 def get_system_info():
     lines = []
     lines.append("System Info")
+
+    # Use timezone-aware datetime to avoid deprecation warning
+    if hasattr(datetime, "UTC"):
+        # Python 3.11+ way
+        current_utc = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        # Older Python versions
+        current_utc = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    lines.append(f"Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): {current_utc}")
+
+    # Add current user login
+    current_user = getpass.getuser()
+    lines.append(f"Current User's Login: {current_user}")
+
     lines.append(f"Platform: {platform.system()} {platform.release()}")
     lines.append(f"Hostname: {platform.node()}")
-    lines.append(f"User: {getpass.getuser()}")
     lines.append(f"Boot Time: {datetime.datetime.fromtimestamp(psutil.boot_time())}")
     return "\n".join(lines)
+
 
 def get_cpu_info():
     lines = []
@@ -50,6 +68,47 @@ def get_cpu_info():
     lines.append(f"Total CPU Usage: {psutil.cpu_percent()}%")
     return "\n".join(lines)
 
+
+def get_cpu_fan_info():
+    lines = []
+    lines.append("CPU Fan Info")
+
+    fan_found = False
+
+    try:
+        c = wmi.WMI()
+        for temp in c.Win32_TemperatureProbe():
+            if 'CPU' in temp.Description and hasattr(temp, 'CurrentReading'):
+                lines.append(f"CPU Fan: {temp.CurrentReading} RPM")
+                fan_found = True
+    except Exception as e:
+        lines.append(f"Standard WMI approach failed: {e}")
+
+    if not fan_found:
+        try:
+            c = wmi.WMI(namespace=r"root\CIMV2")
+            for fan in c.Win32_Fan():
+                lines.append(f"Fan: {fan.Name}, Speed: {fan.DesiredSpeed} RPM")
+                fan_found = True
+        except Exception as e:
+            pass
+
+    if not fan_found:
+        try:
+            c = wmi.WMI(namespace=r"root\WMI")
+            for item in c.MSAcpi_ThermalZoneTemperature():
+                if hasattr(item, 'ActiveCooling') and item.ActiveCooling:
+                    lines.append(f"Thermal Zone: {item.InstanceName} has active cooling")
+                    fan_found = True
+        except Exception as e:
+            pass
+
+    if not fan_found:
+        lines.append("CPU Fan info not available through Windows Management Instrumentation (WMI).")
+
+    return "\n".join(lines)
+
+
 def get_memory_info():
     mem = psutil.virtual_memory()
     swap = psutil.swap_memory()
@@ -61,6 +120,7 @@ def get_memory_info():
     lines.append(f"Swap Total: {swap.total // (1024 ** 2)} MB")
     lines.append(f"Swap Used: {swap.used // (1024 ** 2)} MB ({swap.percent}%)")
     return "\n".join(lines)
+
 
 def get_disk_info():
     lines = []
@@ -75,6 +135,7 @@ def get_disk_info():
             lines.append(f"Error reading {disk.DeviceID}: {e}")
     return "\n".join(lines)
 
+
 def get_network_info():
     lines = []
     lines.append("Network Info")
@@ -88,6 +149,7 @@ def get_network_info():
             lines.append(f"  {interface}: {addr.address}")
     return "\n".join(lines)
 
+
 def get_battery_info():
     lines = []
     if hasattr(psutil, "sensors_battery"):
@@ -97,6 +159,7 @@ def get_battery_info():
             lines.append(f"Percent: {battery.percent}%")
             lines.append(f"Plugged In: {'Yes' if battery.power_plugged else 'No'}")
     return "\n".join(lines)
+
 
 def get_gpu_info():
     lines = []
@@ -111,17 +174,22 @@ def get_gpu_info():
                 name = nvmlDeviceGetName(handle)
                 try:
                     fan_speed = nvmlDeviceGetFanSpeed(handle)
-                    lines.append(f"GPU {i} ({name.decode('utf-8') if isinstance(name, bytes) else name}): Fan Speed: {fan_speed}%")
+                    lines.append(
+                        f"GPU {i} ({name.decode('utf-8') if isinstance(name, bytes) else name}): Fan Speed: {fan_speed}%")
                 except NVMLError_NotSupported:
-                    lines.append(f"GPU {i} ({name.decode('utf-8') if isinstance(name, bytes) else name}): Fan speed reading not supported.")
+                    lines.append(
+                        f"GPU {i} ({name.decode('utf-8') if isinstance(name, bytes) else name}): Fan speed reading not supported.")
                 except Exception as e:
-                    lines.append(f"GPU {i} ({name.decode('utf-8') if isinstance(name, bytes) else name}): Error reading fan speed: {e}")
+                    lines.append(
+                        f"GPU {i} ({name.decode('utf-8') if isinstance(name, bytes) else name}): Error reading fan speed: {e}")
             nvmlShutdown()
         except Exception as e:
             lines.append(f"Could not read NVIDIA GPU fan info: {e}")
     else:
-        lines.append("GPU Fan Info: pynvml not installed. Install with 'pip install nvidia-ml-py3' to get NVIDIA GPU fan speed.")
+        lines.append(
+            "GPU Fan Info: pynvml not installed. Install with 'pip install nvidia-ml-py3' to get NVIDIA GPU fan speed.")
     return "\n".join(lines)
+
 
 def get_motherboard_info():
     lines = []
@@ -138,18 +206,21 @@ def get_motherboard_info():
         lines.append(f"Motherboard Info: Could not retrieve ({e})")
     return "\n".join(lines)
 
+
 def show_all_info():
     output.delete('1.0', tk.END)
     if not is_admin():
         output.insert(tk.END, "Please run this script as a system administrator for accurate hardware readings.\n\n")
     output.insert(tk.END, get_system_info() + "\n\n")
     output.insert(tk.END, get_cpu_info() + "\n\n")
+    output.insert(tk.END, get_cpu_fan_info() + "\n\n")
     output.insert(tk.END, get_memory_info() + "\n\n")
     output.insert(tk.END, get_disk_info() + "\n\n")
     output.insert(tk.END, get_network_info() + "\n\n")
     output.insert(tk.END, get_battery_info() + "\n\n")
     output.insert(tk.END, get_gpu_info() + "\n\n")
     output.insert(tk.END, get_motherboard_info() + "\n\n")
+
 
 # Tkinter GUI setup
 root = tk.Tk()
