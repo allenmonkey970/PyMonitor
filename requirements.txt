@@ -1,0 +1,5 @@
+psutil~=5.9.0
+wintmp~=1.2.0
+wmi~=1.5.1
+pynvml~=12.0.0
+nvidia-ml-py~=12.575.51
