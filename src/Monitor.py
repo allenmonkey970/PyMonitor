@@ -225,6 +225,7 @@ def show_all_info():
 # Tkinter GUI setup
 root = tk.Tk()
 root.title("PyMonitor - System Hardware Monitor")
+root.iconbitmap("monitor.ico")
 
 mainframe = ttk.Frame(root, padding="10")
 mainframe.grid(row=0, column=0, sticky=(tk.N, tk.W, tk.E, tk.S))
