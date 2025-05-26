@@ -39,7 +39,7 @@ def get_system_info():
         # Older Python versions
         current_utc = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-    lines.append(f"Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): {current_utc}")
+    lines.append(f"Current Date and Time: {current_utc}")
 
     # Add current user login
     current_user = getpass.getuser()
