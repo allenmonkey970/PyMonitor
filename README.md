@@ -49,7 +49,7 @@ The main window will show all collected stats. Click **Refresh** to update the d
 
 ## Screenshot
 
-TO do
+![Screenshot](Screenshot.png)
 
 ## License
 
