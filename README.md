@@ -78,10 +78,14 @@ PyMonitor/
 │   │   ├── types.ts
 │   │   ├── vite-env.d.ts
 │   │   └── main.tsx
+│   ├── nginx.conf           # Production nginx config (used by Docker)
 │   ├── index.html
 │   ├── package.json
 │   └── tsconfig.json
 │
+├── Dockerfile.backend       # Multi-stage build for the relay server
+├── Dockerfile.frontend      # Multi-stage build → nginx static serving
+├── docker-compose.yml       # Starts backend + frontend together
 ├── package.json             # Root scripts to start everything at once
 ├── .gitignore
 ├── LICENSE
@@ -96,8 +100,9 @@ PyMonitor/
 |---|---|---|
 | Windows | 10 / 11 | Hardware APIs are Windows-only |
 | Python | 3.10+ | For `app/` |
-| Node.js | 18+ | For `backend/` and `frontend/` |
+| Node.js | 18+ | For `backend/` and `frontend/` (not needed if using Docker) |
 | npm | 9+ | Bundled with Node.js |
+| Docker + Compose | 24+ | Optional — for containerised backend + frontend |
 
 > **Admin privileges required** — temperature sensors and fan speeds need elevated access. Run the desktop app as administrator (it will prompt automatically).
 
@@ -105,7 +110,32 @@ PyMonitor/
 
 ## Quick start
 
-### Option A — Start everything at once (recommended)
+### Option A — Docker (recommended for deployment)
+
+Starts the backend and frontend in containers with a single command. No Node.js install required.
+
+```sh
+docker compose up --build
+```
+
+| Service | Address |
+|---|---|
+| Web dashboard | `http://localhost:5173` |
+| WebSocket relay | `ws://localhost:8765` |
+
+Run in the background with `docker compose up --build -d`, stop with `docker compose down`.
+
+Then launch the desktop app on the host machine (Docker cannot run it — it needs Windows hardware APIs):
+
+```sh
+cd app
+pip install -r requirements.txt
+python app.py
+```
+
+---
+
+### Option B — Start everything at once (no Docker)
 
 From the repo root:
 
@@ -131,7 +161,7 @@ Use `npm run dev` instead of `npm start` to skip the build step during developme
 
 ---
 
-### Option B — Start each piece individually
+### Option C — Start each piece individually
 
 **1 — Backend**
 
