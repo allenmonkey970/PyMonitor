@@ -1,23 +1,105 @@
+import sys
 import psutil
-import WinTmp
 import ctypes
 import platform
 import getpass
 import datetime
+import threading
 import wmi
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 
-try:
-    import pynvml
-    from pynvml import (
-        nvmlInit, nvmlShutdown, nvmlDeviceGetCount, nvmlDeviceGetHandleByIndex,
-        nvmlDeviceGetName, nvmlDeviceGetFanSpeed, NVMLError_NotSupported
-    )
+def _request_admin():
+    if not ctypes.windll.shell32.IsUserAnAdmin():
+        ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", sys.executable, " ".join(f'"{a}"' for a in sys.argv), None, 1
+        )
+        sys.exit()
 
-    has_pynvml = True
-except ImportError:
-    has_pynvml = False
+_request_admin()
+
+try:
+    from HardwareMonitor.Hardware import Computer, HardwareType, SensorType
+
+    _hw_computer = Computer()
+    _hw_computer.IsCpuEnabled = True
+    _hw_computer.IsGpuEnabled = True
+    _hw_computer.Open()
+    has_hw_monitor = True
+except Exception:
+    has_hw_monitor = False
+    _hw_computer = None
+
+
+def _get_hw_sensors(hw_types, sensor_type, name_hint=None):
+    """Return list of (name, value) tuples for matching sensors."""
+    if not has_hw_monitor or _hw_computer is None:
+        return []
+    results = []
+    try:
+        for hardware in _hw_computer.Hardware:
+            if hardware.HardwareType not in hw_types:
+                continue
+            hardware.Update()
+            for sub in hardware.SubHardware:
+                sub.Update()
+            for sensor in hardware.Sensors:
+                if sensor.SensorType != sensor_type:
+                    continue
+                if sensor.Value is None:
+                    continue
+                if name_hint and name_hint.lower() not in sensor.Name.lower():
+                    continue
+                results.append((sensor.Name, sensor.Value))
+    except Exception:
+        pass
+    return results
+
+
+def _get_hw_temp(hw_types, sensor_name_hint=None):
+    if not has_hw_monitor or _hw_computer is None:
+        return "N/A"
+    sensors = _get_hw_sensors(hw_types, SensorType.Temperature)
+    if not sensors:
+        return "N/A"
+    if sensor_name_hint:
+        for name, value in sensors:
+            if sensor_name_hint.lower() in name.lower():
+                return f"{value:.1f} °C"
+    return f"{sensors[0][1]:.1f} °C"
+
+
+def CPU_Temp():
+    return _get_hw_temp([HardwareType.Cpu] if has_hw_monitor else [], "package")
+
+
+def GPU_Temp():
+    gpu_types = []
+    if has_hw_monitor:
+        for attr in ("GpuNvidia", "GpuAmd", "GpuIntel", "Gpu"):
+            val = getattr(HardwareType, attr, None)
+            if val is not None:
+                gpu_types.append(val)
+    return _get_hw_temp(gpu_types, "gpu core")
+
+
+_cpu_percent_per_core = []
+_cpu_percent_total = 0.0
+_cpu_lock = threading.Lock()
+
+
+def _cpu_sampler():
+    global _cpu_percent_per_core, _cpu_percent_total
+    psutil.cpu_percent(percpu=True, interval=None)  # prime
+    while True:
+        per_core = psutil.cpu_percent(percpu=True, interval=1)
+        total = psutil.cpu_percent(interval=None)
+        with _cpu_lock:
+            _cpu_percent_per_core = per_core
+            _cpu_percent_total = total
+
+
+threading.Thread(target=_cpu_sampler, daemon=True).start()
 
 
 def is_admin():
@@ -54,7 +136,7 @@ def get_system_info():
 def get_cpu_info():
     lines = []
     lines.append("CPU Info")
-    lines.append(f"CPU Temperature: {WinTmp.CPU_Temp()}")
+    lines.append(f"CPU Temperature: {CPU_Temp()}")
     lines.append(f"Physical cores: {psutil.cpu_count(logical=False)}")
     lines.append(f"Total cores: {psutil.cpu_count(logical=True)}")
     cpufreq = psutil.cpu_freq()
@@ -63,9 +145,12 @@ def get_cpu_info():
         lines.append(f"Min Frequency: {cpufreq.min:.2f} MHz")
         lines.append(f"Current Frequency: {cpufreq.current:.2f} MHz")
     lines.append("CPU Usage Per Core:")
-    for i, percentage in enumerate(psutil.cpu_percent(percpu=True, interval=1)):
+    with _cpu_lock:
+        per_core = list(_cpu_percent_per_core)
+        total = _cpu_percent_total
+    for i, percentage in enumerate(per_core):
         lines.append(f"  Core {i}: {percentage}%")
-    lines.append(f"Total CPU Usage: {psutil.cpu_percent()}%")
+    lines.append(f"Total CPU Usage: {total}%")
     return "\n".join(lines)
 
 
@@ -73,39 +158,14 @@ def get_cpu_fan_info():
     lines = []
     lines.append("CPU Fan Info")
 
-    fan_found = False
+    cpu_types = [HardwareType.Cpu] if has_hw_monitor else []
+    fans = _get_hw_sensors(cpu_types, SensorType.Fan)
+    if fans:
+        for name, value in fans:
+            lines.append(f"{name}: {value:.0f} RPM")
+        return "\n".join(lines)
 
-    try:
-        c = wmi.WMI()
-        for temp in c.Win32_TemperatureProbe():
-            if 'CPU' in temp.Description and hasattr(temp, 'CurrentReading'):
-                lines.append(f"CPU Fan: {temp.CurrentReading} RPM")
-                fan_found = True
-    except Exception as e:
-        lines.append(f"Standard WMI approach failed: {e}")
-
-    if not fan_found:
-        try:
-            c = wmi.WMI(namespace=r"root\CIMV2")
-            for fan in c.Win32_Fan():
-                lines.append(f"Fan: {fan.Name}, Speed: {fan.DesiredSpeed} RPM")
-                fan_found = True
-        except Exception as e:
-            pass
-
-    if not fan_found:
-        try:
-            c = wmi.WMI(namespace=r"root\WMI")
-            for item in c.MSAcpi_ThermalZoneTemperature():
-                if hasattr(item, 'ActiveCooling') and item.ActiveCooling:
-                    lines.append(f"Thermal Zone: {item.InstanceName} has active cooling")
-                    fan_found = True
-        except Exception as e:
-            pass
-
-    if not fan_found:
-        lines.append("CPU Fan info not available through Windows Management Instrumentation (WMI).")
-
+    lines.append("CPU fan speed not available.")
     return "\n".join(lines)
 
 
@@ -164,30 +224,22 @@ def get_battery_info():
 def get_gpu_info():
     lines = []
     lines.append("GPU Info")
-    lines.append(f"GPU Temperature: {WinTmp.GPU_Temp()}")
-    if has_pynvml:
-        try:
-            nvmlInit()
-            device_count = nvmlDeviceGetCount()
-            for i in range(device_count):
-                handle = nvmlDeviceGetHandleByIndex(i)
-                name = nvmlDeviceGetName(handle)
-                try:
-                    fan_speed = nvmlDeviceGetFanSpeed(handle)
-                    lines.append(
-                        f"GPU {i} ({name.decode('utf-8') if isinstance(name, bytes) else name}): Fan Speed: {fan_speed}%")
-                except NVMLError_NotSupported:
-                    lines.append(
-                        f"GPU {i} ({name.decode('utf-8') if isinstance(name, bytes) else name}): Fan speed reading not supported.")
-                except Exception as e:
-                    lines.append(
-                        f"GPU {i} ({name.decode('utf-8') if isinstance(name, bytes) else name}): Error reading fan speed: {e}")
-            nvmlShutdown()
-        except Exception as e:
-            lines.append(f"Could not read NVIDIA GPU fan info: {e}")
+    lines.append(f"GPU Temperature: {GPU_Temp()}")
+
+    gpu_types = []
+    if has_hw_monitor:
+        for attr in ("GpuNvidia", "GpuAmd", "GpuIntel", "Gpu"):
+            val = getattr(HardwareType, attr, None)
+            if val is not None:
+                gpu_types.append(val)
+
+    fans = _get_hw_sensors(gpu_types, SensorType.Fan)
+    if fans:
+        for name, value in fans:
+            lines.append(f"{name}: {value:.0f} RPM")
     else:
-        lines.append(
-            "GPU Fan Info: pynvml not installed. Install with 'pip install nvidia-ml-py3' to get NVIDIA GPU fan speed.")
+        lines.append("GPU fan speed not available.")
+
     return "\n".join(lines)
 
 
@@ -207,19 +259,64 @@ def get_motherboard_info():
     return "\n".join(lines)
 
 
-def show_all_info():
+_refresh_job = None
+_refreshing = False
+
+
+def _collect_info():
+    sections = [
+        get_system_info(),
+        get_cpu_info(),
+        get_cpu_fan_info(),
+        get_memory_info(),
+        get_disk_info(),
+        get_network_info(),
+        get_battery_info(),
+        get_gpu_info(),
+        get_motherboard_info(),
+    ]
+    return "\n\n".join(sections)
+
+
+def _apply_update(text):
+    global _refreshing
+    scroll_pos = output.yview()
+    output.config(state=tk.NORMAL)
     output.delete('1.0', tk.END)
-    if not is_admin():
-        output.insert(tk.END, "Please run this script as a system administrator for accurate hardware readings.\n\n")
-    output.insert(tk.END, get_system_info() + "\n\n")
-    output.insert(tk.END, get_cpu_info() + "\n\n")
-    output.insert(tk.END, get_cpu_fan_info() + "\n\n")
-    output.insert(tk.END, get_memory_info() + "\n\n")
-    output.insert(tk.END, get_disk_info() + "\n\n")
-    output.insert(tk.END, get_network_info() + "\n\n")
-    output.insert(tk.END, get_battery_info() + "\n\n")
-    output.insert(tk.END, get_gpu_info() + "\n\n")
-    output.insert(tk.END, get_motherboard_info() + "\n\n")
+    output.insert(tk.END, text)
+    output.config(state=tk.DISABLED)
+    output.yview_moveto(scroll_pos[0])
+    _refreshing = False
+    _schedule_refresh()
+
+
+def _run_refresh():
+    text = _collect_info()
+    root.after(0, _apply_update, text)
+
+
+def _schedule_refresh():
+    global _refresh_job
+    _refresh_job = root.after(2000, _trigger_refresh)
+
+
+def _trigger_refresh():
+    global _refreshing
+    if _refreshing:
+        _schedule_refresh()
+        return
+    _refreshing = True
+    threading.Thread(target=_run_refresh, daemon=True).start()
+
+
+def manual_refresh():
+    global _refresh_job, _refreshing
+    if _refresh_job is not None:
+        root.after_cancel(_refresh_job)
+        _refresh_job = None
+    if not _refreshing:
+        _refreshing = True
+        threading.Thread(target=_run_refresh, daemon=True).start()
 
 
 # Tkinter GUI setup
@@ -231,14 +328,15 @@ mainframe = ttk.Frame(root, padding="10")
 mainframe.grid(row=0, column=0, sticky=(tk.N, tk.W, tk.E, tk.S))
 
 output = scrolledtext.ScrolledText(mainframe, width=100, height=40, font=("Consolas", 10))
+output.config(state=tk.DISABLED)
 output.grid(row=0, column=0, columnspan=2, pady=(0, 10))
 
-refresh_button = ttk.Button(mainframe, text="Refresh", command=show_all_info)
+refresh_button = ttk.Button(mainframe, text="Refresh", command=manual_refresh)
 refresh_button.grid(row=1, column=0, sticky=tk.W)
 
 exit_button = ttk.Button(mainframe, text="Exit", command=root.quit)
 exit_button.grid(row=1, column=1, sticky=tk.E)
 
-show_all_info()
+_trigger_refresh()
 
 root.mainloop()
