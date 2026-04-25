@@ -1,0 +1,4 @@
+websocket-client>=1.8.0
+psutil>=5.9.0
+wmi>=1.5.1
+HardwareMonitor>=0.1.0

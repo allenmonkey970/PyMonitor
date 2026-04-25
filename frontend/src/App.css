@@ -1,0 +1,401 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:        #0d0f1a;
+  --surface:   #151929;
+  --surface2:  #1c2136;
+  --border:    #252a40;
+  --text:      #e2e8f0;
+  --muted:     #64748b;
+  --accent:    #6366f1;
+  --green:     #22c55e;
+  --yellow:    #f59e0b;
+  --red:       #ef4444;
+  --blue:      #38bdf8;
+  --radius:    10px;
+  --font-mono: "Consolas", "JetBrains Mono", "Fira Code", monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  min-height: 100vh;
+}
+
+/* ── Header ─────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header {
+  gap: 16px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text);
+}
+
+.header h1 span {
+  color: var(--accent);
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ── Connection status dot ───────────────────────────── */
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.connected    { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.connecting   { background: var(--yellow); animation: pulse 1.2s infinite; }
+.status-dot.disconnected { background: var(--red); }
+
+/* ── URL editor ──────────────────────────────────────────── */
+.url-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+.url-display {
+  background: none;
+  border: none;
+  color: var(--blue);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.url-display:hover { color: var(--text); }
+
+.url-edit-hint {
+  color: var(--muted);
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.url-display:hover .url-edit-hint { opacity: 1; }
+
+.url-input {
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--accent);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+  width: 260px;
+  padding: 0 0 2px;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+/* ── Main grid ───────────────────────────────────────── */
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+  padding: 20px 24px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* ── Cards ───────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.card-header .icon {
+  font-size: 14px;
+}
+
+.card-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Row / label-value pairs ─────────────────────────── */
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.value {
+  color: var(--text);
+  text-align: right;
+  word-break: break-all;
+}
+
+/* ── Progress bar ────────────────────────────────────── */
+.bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bar-label-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.bar-track {
+  height: 7px;
+  background: var(--surface2);
+  border-radius: 99px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+/* ── Temp badge ──────────────────────────────────────── */
+.temp {
+  font-weight: 700;
+  font-size: 22px;
+}
+
+.temp.cool   { color: var(--green); }
+.temp.warm   { color: var(--yellow); }
+.temp.hot    { color: var(--red); }
+.temp.na     { color: var(--muted); font-size: 14px; }
+
+/* ── Big stat ────────────────────────────────────────── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stat-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.stat-box .stat-label {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 2px;
+}
+
+.stat-box .stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ── Core grid ───────────────────────────────────────── */
+.core-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 6px;
+}
+
+.core-cell {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 6px;
+  text-align: center;
+}
+
+.core-cell .core-id {
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.core-cell .core-pct {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── Network list ────────────────────────────────────── */
+.net-entry {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+}
+
+.net-iface {
+  color: var(--blue);
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.net-addr {
+  color: var(--text);
+}
+
+/* ── Disk entries ────────────────────────────────────── */
+.disk-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── Fan row ─────────────────────────────────────────── */
+.fan-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.fan-name { color: var(--muted); font-size: 11px; }
+.fan-rpm  { color: var(--blue); font-weight: 600; }
+
+/* ── Battery ─────────────────────────────────────────── */
+.battery-pct {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+  padding: 4px 0 8px;
+}
+
+/* ── Stale / app-disconnected banner ────────────────── */
+.stale-banner {
+  background: #2a1f00;
+  border-bottom: 1px solid var(--yellow);
+  color: var(--yellow);
+  font-size: 12px;
+  padding: 8px 24px;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+.stale-banner::before {
+  content: "⚠  ";
+}
+
+.dashboard.stale {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ── Placeholder / disconnected ──────────────────────── */
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: 12px;
+  color: var(--muted);
+}
+
+.placeholder-icon {
+  font-size: 48px;
+  opacity: 0.4;
+}
+
+.placeholder p {
+  font-size: 14px;
+}
+
+/* ── Divider ─────────────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
+
+/* ── Scrollable card body ────────────────────────────── */
+.card-body.scroll {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.card-body.scroll::-webkit-scrollbar { width: 4px; }
+.card-body.scroll::-webkit-scrollbar-track { background: transparent; }
+.card-body.scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
